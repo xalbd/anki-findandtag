@@ -84,6 +84,8 @@ class TaggingDialog(QDialog):
 
             field = note[config["field"]]
             filtered = "".join(kanji_regex.findall(field))
+            if len(filtered) == 0:
+                continue
 
             ok = True
             for kanji in filtered:
