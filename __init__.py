@@ -1,5 +1,5 @@
 from aqt import mw
-from aqt.utils import qconnect
+from aqt.utils import qconnect, showInfo
 from aqt.qt import *
 import re
 
@@ -14,6 +14,7 @@ class TaggingDialog(QDialog):
 
         self.setWindowTitle("Quick Tag Kanji")
         self.layout = QVBoxLayout()
+        self.setModal(True)
 
         self.deckSelect = QLineEdit()
         self.deckSelect.setText(config["deck"])
@@ -41,7 +42,7 @@ class TaggingDialog(QDialog):
         buttonLayout.addWidget(self.cancelButton)
 
         self.saveButton = QPushButton("Save")
-        self.saveButton.clicked.connect(self.saveConfig)
+        self.saveButton.clicked.connect(lambda: self.saveConfig(True))
         buttonLayout.addWidget(self.saveButton)
 
         self.button = QPushButton("Save and Tag Notes")
@@ -60,31 +61,46 @@ class TaggingDialog(QDialog):
             "tag": self.tagEdit.text(),
         }
 
-    def saveConfig(self):
+    def saveConfig(self, showAlert=True):
         mw.addonManager.writeConfig(__name__, self.buildNewConfig())
+        if showAlert:
+            showInfo("Config saved")
 
     def tagNotes(self):
-        self.saveConfig()
+        self.saveConfig(showAlert=False)
         config = self.buildNewConfig()
 
         note_ids = mw.col.find_notes(f"deck:{config['deck']}")
+        to_change = []  # keep note_ids to bulk add tag later
+        has_field = 0  # for informational output
         for note_id in note_ids:
             note = mw.col.get_note(note_id)
+            if config["field"] not in note.keys():
+                continue
+
+            has_field += 1
+            if note.has_tag(config["tag"]):
+                continue
+
             field = note[config["field"]]
             filtered = "".join(kanji_regex.findall(field))
 
             ok = True
-            note["Notes"] += filtered
-            mw.col.update_note(note)
             for kanji in filtered:
-
                 if kanji not in config["targets"]:
                     ok = False
                     break
 
             if ok:
-                note.add_tag(config["tag"])
-                mw.col.update_note(note)
+                to_change.append(note_id)
+
+        changed = mw.col.tags.bulk_add(to_change, config["tag"])
+        showInfo(
+            f"""Saved config! 
+            Found {len(note_ids)} notes in {config['deck']} deck.
+            {has_field} notes had field {config['field']}.
+            {changed.count} new notes tagged as {config['tag']}.""",
+        )
 
 
 def showTaggingDialog():
