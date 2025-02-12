@@ -1,0 +1,3 @@
+#!/bin/bash
+
+zip kanji-find-and-tag.ankiaddon __init__.py config.json README.md img/screenshot.png
